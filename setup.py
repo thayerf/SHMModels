@@ -8,5 +8,6 @@ setup(name='SHMModels',
       author='Julia Fukuyama',
       author_email='julia.fukuyama@gmail.com',
       url='http://www.github.com/matsengrp/SHMModels',
-      packages=find_packages(exclude='test')
+      packages=find_packages(exclude=['test', 'analysis']),
+      package_data={'SHMModels': ['data/*']}
 )

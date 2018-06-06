@@ -3,8 +3,6 @@ from Bio.Seq import Seq
 from Bio.Alphabet import IUPAC
 from fitted_models import aid_context_model
 
-NUCLEOTIDES = ["A", "G", "C", "T"]
-
 
 class MutationRound(object):
     """A round of deamination and repair, resulting in mutations. A MutationRound has the following properties:
@@ -57,6 +55,7 @@ class MutationRound(object):
         self.pol_eta_params = pol_eta_params
         self.ber_params = ber_params
         self.p_fw = p_fw
+        self.NUCLEOTIDES = ["A", "G", "C", "T"]
 
     def mutation_round(self):
         self.sample_lesions()
@@ -85,7 +84,7 @@ class MutationRound(object):
     def sample_repaired_sequence(self):
         int_seq = self.start_seq
         # choose either the fw or rc strand to sample
-        strand = np.random.choice([0, 1], size=1, p=[.5, .5])[0]
+        strand = np.random.choice([0, 1], size=1, p=[self.p_fw, 1-self.p_fw])[0]
         repairs = list(self.repair_types[strand])
         while len(repairs) > 0:
             # get the next lesion to repair and how to repair it,
