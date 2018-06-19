@@ -38,7 +38,8 @@ class MutationRound(object):
                      'T': [0, 0, 0, 1]
                  },
                  p_fw=.5,
-                 ber_params=[0, 0, 1, 0]):
+                 ber_params=[0, 0, 1, 0],
+                 aid_context_model=None):
         """Returns a MutationRound object with a specified start_seq"""
         if not isinstance(start_seq, Seq):
             raise TypeError("The input sequence must be a Seq object")
@@ -55,6 +56,7 @@ class MutationRound(object):
         self.pol_eta_params = pol_eta_params
         self.ber_params = ber_params
         self.p_fw = p_fw
+        self.aid_context_model = aid_context_model
         self.NUCLEOTIDES = ["A", "G", "C", "T"]
 
     def mutation_round(self):
@@ -65,6 +67,7 @@ class MutationRound(object):
     def sample_lesions(self):
         """Sample lesions induced by AID"""
         self.aid_lesions = make_aid_lesions(self.start_seq,
+                                            context_model=self.aid_context_model,
                                             bubble_size=self.bubble_size,
                                             time=self.aid_time,
                                             p_fw=self.p_fw)
@@ -260,7 +263,7 @@ def get_next_repair(repair_list):
         return(next_repair, new_repair_list)
 
 
-def make_aid_lesions(sequence, bubble_size=20, time=1, p_fw=.5):
+def make_aid_lesions(sequence, context_model, bubble_size=20, time=1, p_fw=.5):
     """Simulates AID lesions on a sequence
 
     Keyword arguments:
@@ -278,7 +281,8 @@ def make_aid_lesions(sequence, bubble_size=20, time=1, p_fw=.5):
     # choose a random position in the sequence and a strand
     stop_site = np.random.randint(0, len(sequence))
     strand = np.random.choice(["fw", "rc"], size=1, p=[p_fw, 1 - p_fw])
-    lesions = deaminate_in_bubble(sequence, bubble_size, stop_site, strand, time)
+    lesions = deaminate_in_bubble(sequence, bubble_size, stop_site,
+                                  strand, context_model, time)
     return lesions
 
 
@@ -316,7 +320,8 @@ def c_bases_in_bubble(sequence, bubble_size, stop_site, strand):
     return (cs_fw, cs_rc)
 
 
-def deaminate_in_bubble(sequence, bubble_size, stop_site, strand, time=1):
+def deaminate_in_bubble(sequence, bubble_size, stop_site, strand,
+                        context_model, time=1):
     """Simulates deamination of Cs in a transcription bubble
 
     Keyword arguments:
@@ -337,8 +342,8 @@ def deaminate_in_bubble(sequence, bubble_size, stop_site, strand, time=1):
                                              bubble_size,
                                              stop_site,
                                              strand)
-    c_rates_fw = get_aid_rates(c_idx_fw, sequence, strand="fw")
-    c_rates_rc = get_aid_rates(c_idx_rc, sequence, strand="rc")
+    c_rates_fw = get_aid_rates(c_idx_fw, sequence, strand="fw", context_model=context_model)
+    c_rates_rc = get_aid_rates(c_idx_rc, sequence, strand="rc", context_model=context_model)
     waiting_times_fw = [np.random.exponential(scale=1/r) for r in c_rates_fw]
     waiting_times_rc = [np.random.exponential(scale=1/r) for r in c_rates_rc]
     deam_fw = [i for (i, wt) in zip(c_idx_fw, waiting_times_fw) if wt <= time]
@@ -346,7 +351,7 @@ def deaminate_in_bubble(sequence, bubble_size, stop_site, strand, time=1):
     return (deam_fw, deam_rc)
 
 
-def get_aid_rates(idx, sequence, strand):
+def get_aid_rates(idx, sequence, strand, context_model):
     """Computes deamination rates for positions in a sequence
 
     Keyword arguments:
@@ -354,17 +359,25 @@ def get_aid_rates(idx, sequence, strand):
     sequence -- The sequence the C's are found in.
     strand -- Whether idx refers to a position on the fw strand or the
     rc strand.
+    context_model -- A ContextModel object describing deamination
+    probabilities.
 
     Returns:
     A vector of the same size as idx containing deamination rates.
 
     """
     if strand == "fw":
-        rates = [aid_context_rate_tree(i, sequence) for i in idx]
+        probs = [context_model.get_context_prob(i, sequence) for i in idx]
+        if any([p is None for p in probs]):
+            print idx, probs
+        rates = [-np.log(1 - p) for p in probs]
     elif strand == "rc":
-        rates = [aid_context_rate_tree(len(sequence) - i, sequence.reverse_complement()) for i in idx]
+        probs = [context_model.get_context_prob(len(sequence) - i, sequence.reverse_complement()) for i in idx]
+        if any([p is None for p in probs]):
+            print idx, probs
+        rates = [-np.log(1 - p) for p in probs]
     else:
-        raise ValueError("strand must be either 'fw' or 'rc'")
+        raise ValueError("strand must be either 'fw' or 'rc'")    
     return rates
 
 
@@ -378,7 +391,7 @@ the regression tree model.
 
     Returns:
     A deamination rate based on the regression tree model.
-
+    DEPRECATED
     """
     # the context model uses the two bases 5' of the base to be deaminated
     lo = np.max([idx - 2, 0])

@@ -11,6 +11,30 @@ from SHMModels.fitted_models import aid_context_model
 from SHMModels.simulate_mutations import Repair
 from SHMModels.simulate_mutations import get_next_repair
 from SHMModels.simulate_mutations import MutationRound
+from SHMModels.mutation_processing import mutation_subset
+from SHMModels.fitted_models import ContextModel
+
+
+class testMutationSubset(unittest.TestCase):
+
+    def setUp(self):
+        pass
+
+    def test_mutation_subset(self):
+        naive_seq = Seq("AGCA", alphabet=IUPAC.unambiguous_dna)
+        mutated_seq = Seq("ATTT", alphabet=IUPAC.unambiguous_dna)
+        (_, ms1) = mutation_subset(naive_seq, mutated_seq,
+                                   base="G", strand="fw")
+        (_, ms2) = mutation_subset(naive_seq, mutated_seq,
+                                   base="G", strand="rc")
+        (_, ms3) = mutation_subset(naive_seq, mutated_seq,
+                                   base="C", strand="fw")
+        (_, ms4) = mutation_subset(naive_seq, mutated_seq,
+                                   base="C", strand="rc")
+        self.assertEqual(str(ms1), "ATCA")
+        self.assertEqual(str(ms2), "AGTA")
+        self.assertEqual(str(ms3), "AGTA")
+        self.assertEqual(str(ms4), "ATCA")
 
 
 class testAIDLesion(unittest.TestCase):
@@ -134,6 +158,41 @@ class testAIDLesion(unittest.TestCase):
         self.assertEqual(nr.repair_type, "ber")
         self.assertEqual(nr.time, .5)
         self.assertEqual(len(new_repair_list), 1)
+
+    def test_get_context(self):
+        cm = ContextModel(context_length=5, pos_mutating=2, csv_file=None)
+        cm2 = ContextModel(context_length=3, pos_mutating=2, csv_file=None)
+        s = "AAGCT"
+        self.assertEqual(cm.get_context(idx=2, sequence=s), "AAGCT")
+        self.assertEqual(cm2.get_context(idx=2, sequence=s), "AAG")
+        self.assertEqual(cm.get_context(idx=0, sequence=s), "NNAAG")
+        self.assertEqual(cm.get_context(idx=4, sequence=s), "GCTNN")
+
+    def test_in_flank(self):
+        cm = ContextModel(context_length=5, pos_mutating=2, csv_file=None)
+        self.assertTrue(cm.in_flank(idx=0, seq_len=10))
+        self.assertTrue(cm.in_flank(idx=1, seq_len=10))
+        self.assertFalse(cm.in_flank(idx=2, seq_len=10))
+        self.assertTrue(cm.in_flank(idx=9, seq_len=10))
+        self.assertTrue(cm.in_flank(idx=8, seq_len=10))
+        self.assertFalse(cm.in_flank(idx=7, seq_len=10))
+        cm2 = ContextModel(context_length=3, pos_mutating=2, csv_file=None)
+        self.assertTrue(cm2.in_flank(idx=0, seq_len=10))
+        self.assertTrue(cm2.in_flank(idx=1, seq_len=10))
+        self.assertFalse(cm2.in_flank(idx=2, seq_len=10))
+        self.assertFalse(cm2.in_flank(idx=9, seq_len=10))
+        self.assertFalse(cm2.in_flank(idx=8, seq_len=10))
+        self.assertFalse(cm2.in_flank(idx=7, seq_len=10))
+
+    def test_compute_marginal_prob(self):
+        cm = ContextModel(context_length=3, pos_mutating=2, csv_file=None)
+        cm.context_dict = {}
+        cm.context_dict["AAC"] = .5
+        cm.context_dict["AGC"] = .1
+        self.assertEqual(cm.compute_marginal_prob("NAC"), .5)
+        self.assertEqual(cm.compute_marginal_prob("NNC"), .3)
+        self.assertTrue("NAC" in cm.context_dict.keys())
+        self.assertTrue("NNC" in cm.context_dict.keys())
 
 
 if __name__ == '__main__':
