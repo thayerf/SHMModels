@@ -6,21 +6,12 @@ import StringIO
 import numpy as np
 import fnmatch
 
-# read in the fitted values from the regression tree based aid model
-# and turn it into a dictionary
-aid_df = pd.read_csv(io.BytesIO(pkgutil.get_data("SHMModels", "data/aid_model.csv")),
-                     encoding='utf8',
-                     na_filter=False)
-aid_context_model = {}
-for (index, row) in aid_df.iterrows():
-    aid_context_model[row["motif"]] = row["pred"]
-
 
 class ContextModel:
     """Contains the information about mutation probabilities from a context model."""
     def __init__(self, context_length, pos_mutating, csv_string):
         """
-        csv_file -- A csv with two columns, one containing the nucleotide
+        csv_string -- A csv with two columns, one containing the nucleotide
         context and the other containing the theta values.
         """
         self.context_length = context_length
