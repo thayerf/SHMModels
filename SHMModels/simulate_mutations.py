@@ -1,7 +1,6 @@
 import numpy as np
 from Bio.Seq import Seq
 from Bio.Alphabet import IUPAC
-from fitted_models import aid_context_model
 
 
 class MutationRound(object):
@@ -30,7 +29,7 @@ class MutationRound(object):
                  mmr_lambda=1,
                  bubble_size=20,
                  aid_time=1,
-                 exo_params={'left': 5, 'right': 5},
+                 exo_params={'left': .2, 'right': .2},
                  pol_eta_params={
                      'A': [1, 0, 0, 0],
                      'G': [0, 1, 0, 0],
@@ -58,6 +57,7 @@ class MutationRound(object):
         self.p_fw = p_fw
         self.aid_context_model = aid_context_model
         self.NUCLEOTIDES = ["A", "G", "C", "T"]
+        self.mmr_sizes = []
 
     def mutation_round(self):
         self.sample_lesions()
@@ -94,6 +94,9 @@ class MutationRound(object):
             # update the list of resolutions to remove it and any
             # others that are resolved in the process.
             (rt, repairs) = get_next_repair(repairs)
+            # add the info about exo length here
+            if(rt.repair_type == "mmr"):
+                self.mmr_sizes = self.mmr_sizes + [rt.exo_hi - rt.exo_lo]
             if strand == 0:
                 int_seq = self.sample_sequence_given_repair(int_seq, rt)
             elif strand == 1:
@@ -162,13 +165,13 @@ class MutationRound(object):
 
     def sample_exo_positions(self):
         l = len(self.start_seq)
-        return([(max(0, a - self.exo_params['left']),
-                 min(a + self.exo_params['right'], l - 1)) for
-                a in self.aid_lesions[0]],
-               [(max(0, a - self.exo_params['left']),
-                 min(a + self.exo_params['right'], l - 1)) for
-                a in self.aid_lesions[1]])
-
+        exo_positions = ([(max(0, a - np.random.geometric(self.exo_params['left'])),
+                           min(a + np.random.geometric(self.exo_params['right']), l - 1)) for
+                          a in self.aid_lesions[0]],
+                         [(max(0, a - np.random.geometric(self.exo_params['left'])),
+                           min(a + np.random.geometric(self.exo_params['right']), l - 1)) for
+                          a in self.aid_lesions[1]])
+        return(exo_positions)
 
 class Repair(object):
     """Describes how a lesion is repaired. A Repair object has the following properties:

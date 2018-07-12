@@ -43,7 +43,7 @@ def dist_between_mutations(gl_seq, mutated_seq_list):
     return np.mean(mutation_dists)
 
 
-def write_all_stats(gl_seq, mutated_seq_list, file=None):
+def write_all_stats(gl_seq, mutated_seq_list, mmr_avg_length, file=None):
     """Computes all the summary statistics
 
     Keyword arguments:
@@ -57,8 +57,9 @@ def write_all_stats(gl_seq, mutated_seq_list, file=None):
     """
     ss = mutation_probs(gl_seq, mutated_seq_list)
     ss.append(dist_between_mutations(gl_seq, mutated_seq_list))
+    ss.append(mmr_avg_length)
     if file is not None:
-        with open(file, 'a') as output_file:
+        with open(file, 'w') as output_file:
             output_file.write('\t'.join([str(m) for m in ss]))
             output_file.write('\n')
     return ss
