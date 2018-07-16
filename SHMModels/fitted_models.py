@@ -1,6 +1,3 @@
-import pandas as pd
-import pkgutil
-import io
 import csv
 import StringIO
 import numpy as np
@@ -11,6 +8,8 @@ class ContextModel:
     """Contains the information about mutation probabilities from a context model."""
     def __init__(self, context_length, pos_mutating, csv_string):
         """
+        context_length -- The motif sizes.
+        pos_mutating -- The position of the target base within the motif.
         csv_string -- A csv with two columns, one containing the nucleotide
         context and the other containing the theta values.
         """
@@ -60,7 +59,7 @@ class ContextModel:
         return False
 
     def compute_marginal_prob(self, context):
-        """Computes marginal probabilities and adds them to the context dictionary"""
+        """Computes marginal probabilities"""
         search_string = []
         # replace all the n's with ? to create the search string
         for c in list(context):
@@ -70,19 +69,13 @@ class ContextModel:
                 search_string.append(c)
         search_string = "".join(search_string)
         # find all the keys with contexts consistent with the n-ful context
-        print search_string
-        print len(self.context_dict.keys())
-        print self.context_dict.keys()[:5]
         consistent_contexts = fnmatch.filter(self.context_dict.keys(), search_string)
-        print consistent_contexts
         # remove any contexts that already have n's (already
         # marginalized contexts)
         consistent_contexts = [cc for cc in consistent_contexts
                                if not "N" in cc]
-        print consistent_contexts
         # get the probabilities for all the consistent contexts
         cc_probs = [self.context_dict[k] for k in consistent_contexts]
-        print cc_probs
         return np.mean(cc_probs)
 
 
