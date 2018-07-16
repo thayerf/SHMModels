@@ -1,6 +1,13 @@
 import numpy as np
+import numpy.random
+import pkgutil
 from Bio.Seq import Seq
+from Bio import SeqIO
+from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
+from SHMModels.summary_statistics import write_all_stats
+from SHMModels.fitted_models import ContextModel
+#from timeit import default_timer as timer
 
 
 class MutationRound(object):
@@ -384,23 +391,74 @@ def get_aid_rates(idx, sequence, strand, context_model):
     return rates
 
 
-def aid_context_rate_tree(idx, sequence):
-    """Computes the deamination rate for a position in the sequence from
-the regression tree model.
+def simulate_sequences_abc(germline_sequence,
+                           aid_context_model,
+                           context_model_length,
+                           context_model_pos_mutating,
+                           n_seqs,
+                           n_mutation_rounds,
+                           ss_file,
+                           param_file,
+                           n_sims):
 
-    Keyword arguments:
-    idx -- The index of a C to be deaminated.
-    sequence -- The sequence containing the C to be deaminated.
-
-    Returns:
-    A deamination rate based on the regression tree model.
-    DEPRECATED
-    """
-    # the context model uses the two bases 5' of the base to be deaminated
-    lo = np.max([idx - 2, 0])
-    context = str(sequence[lo:idx]).lower()
-    pred = aid_context_model[context]
-    # the 100 comes from the model being trained to predict the number
-    # of mutations at each C, taken from a set of 100 sequences
-    rate = -np.log(1 - pred / 100)
-    return rate
+    sequence = list(SeqIO.parse(germline_sequence, "fasta",
+                                alphabet=IUPAC.unambiguous_dna))[0]
+    aid_model_string = pkgutil.get_data("SHMModels", aid_context_model)
+    aid_model = ContextModel(context_model_length,
+                             context_model_pos_mutating,
+                             aid_model_string)
+    n_sum_stats = 310
+    n_params = 9
+    ss_array = np.zeros([n_sims, n_sum_stats])
+    param_array = np.zeros([n_sims, n_params])
+    for sim in range(n_sims):
+        mutated_seq_list = []
+        mmr_length_list = []
+        # the prior specification
+        #start_prior = timer()
+        ber_lambda = np.random.uniform(0, 1, 1)[0]
+        bubble_size = np.random.randint(5, 50)
+        exo_left = 1 / np.random.uniform(1, 50, 1)[0]
+        exo_right = 1 / np.random.uniform(1, 50, 1)[0]
+        pol_eta_params = {
+                     'A': [.9, .02, .02, .06],
+                     'G': [.01, .97, .01, .01],
+                     'C': [.01, .01, .97, .01],
+                     'T': [.06, .02, .02, .9]
+        }
+        ber_params = np.random.dirichlet([1, 1, 1, 1])
+        p_fw = np.random.uniform(0, 1, 1)[0]
+        #end_prior = timer()
+        #start_seqs = timer()
+        for i in range(n_seqs):
+            mr = MutationRound(sequence.seq,
+                               ber_lambda=ber_lambda,
+                               mmr_lambda=1 - ber_lambda,
+                               replication_time=100,
+                               bubble_size=bubble_size,
+                               aid_time=10,
+                               exo_params={'left': exo_left,
+                                           'right': exo_right},
+                               pol_eta_params=pol_eta_params,
+                               ber_params=ber_params,
+                               p_fw=p_fw,
+                               aid_context_model=aid_model)
+            for j in range(n_mutation_rounds):
+                mr.mutation_round()
+                mr.start_seq = mr.repaired_sequence
+            mutated_seq_list.append(SeqRecord(mr.repaired_sequence, id=""))
+            if(len(mr.mmr_sizes) > 0):
+                mmr_length_list.append(np.mean(mr.mmr_sizes))
+        #end_seqs = timer()
+        #start_ss = timer()
+        ss_array[sim, :] = write_all_stats(sequence,
+                                           mutated_seq_list,
+                                           np.mean(mmr_length_list),
+                                           file=None)
+        params = [ber_lambda, bubble_size, exo_left, exo_right, ber_params[0], ber_params[1], ber_params[2], ber_params[3], p_fw]
+        param_array[sim, :] = params
+        #end_ss = timer()
+        #print("Draw the prior: {}, Simulate sequences: {}, Write summary statistics: {}".format(end_prior - start_prior, end_seqs - start_seqs, end_ss - start_ss))
+    np.savetxt(param_file, param_array, delimiter=",")
+    np.savetxt(ss_file, ss_array, delimiter=",")
+    return (param_array, ss_array)
