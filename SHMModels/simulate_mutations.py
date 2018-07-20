@@ -184,7 +184,7 @@ class Repair(object):
     """Describes how a lesion is repaired. A Repair object has the following properties:
 
     Attributes:
-    location -- A SequenceLocation describing the position on the sequence.
+    idx -- The location of the lesion.
     repair_type -- The type of repair machinery recruited first.
     repair_time -- The time at which the repair machinery is recruited.
     exo_lo -- The position of the most 3' base stripped out by EXO1.
