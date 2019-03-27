@@ -399,7 +399,10 @@ def simulate_sequences_abc(germline_sequence,
                            n_mutation_rounds,
                            ss_file,
                            param_file,
-                           n_sims):
+                           sequence_file,
+                           n_sims,
+                           write_ss=True,
+                           write_sequences=False):
 
     sequence = list(SeqIO.parse(germline_sequence, "fasta",
                                 alphabet=IUPAC.unambiguous_dna))[0]
@@ -411,6 +414,7 @@ def simulate_sequences_abc(germline_sequence,
     n_params = 9
     ss_array = np.zeros([n_sims, n_sum_stats])
     param_array = np.zeros([n_sims, n_params])
+    mutated_seq_array = np.empty([n_sims * n_seqs, 2], dtype="S500")
     for sim in range(n_sims):
         mutated_seq_list = []
         mmr_length_list = []
@@ -451,14 +455,22 @@ def simulate_sequences_abc(germline_sequence,
                 mmr_length_list.append(np.mean(mr.mmr_sizes))
         #end_seqs = timer()
         #start_ss = timer()
-        ss_array[sim, :] = write_all_stats(sequence,
-                                           mutated_seq_list,
-                                           np.mean(mmr_length_list),
-                                           file=None)
+        if write_ss:
+            ss_array[sim, :] = write_all_stats(sequence,
+                                            mutated_seq_list,
+                                            np.mean(mmr_length_list),
+                                            file=None)
         params = [ber_lambda, bubble_size, exo_left, exo_right, ber_params[0], ber_params[1], ber_params[2], ber_params[3], p_fw]
         param_array[sim, :] = params
+        if write_sequences:
+            seq_strings = [str(ms.seq) for ms in mutated_seq_list]
+            mutated_seq_array[(sim * n_seqs):((sim + 1) * n_seqs),0] = seq_strings
+            mutated_seq_array[(sim * n_seqs):((sim + 1) * n_seqs),1] = sim
         #end_ss = timer()
         #print("Draw the prior: {}, Simulate sequences: {}, Write summary statistics: {}".format(end_prior - start_prior, end_seqs - start_seqs, end_ss - start_ss))
     np.savetxt(param_file, param_array, delimiter=",")
-    np.savetxt(ss_file, ss_array, delimiter=",")
+    if write_ss:
+        np.savetxt(ss_file, ss_array, delimiter=",")
+    if write_sequences:
+        np.savetxt(sequence_file, mutated_seq_array, delimiter=",", fmt="%s")
     return (param_array, ss_array)
