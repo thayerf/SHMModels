@@ -480,7 +480,7 @@ def memory_simulator(sequence,
                            aid_model,
                            n_seqs,
                            n_mutation_rounds,
-                           n_sims):
+                           n_sims, ber_pathway = True):
     n_params = 9
     param_array = np.zeros([n_sims, n_params])
     mutated_seq_array = np.empty([n_sims * n_seqs, 2], dtype="S500")
@@ -488,7 +488,12 @@ def memory_simulator(sequence,
         mutated_seq_list = []
         mmr_length_list = []
         #The prior specification
-        ber_lambda = np.random.uniform(0, 1, 1)[0]
+		if ber_pathway:
+			ber_lambda = np.random.uniform(0, 1, 1)[0]
+			ber_params = np.random.dirichlet([1, 1, 1, 1])
+		else:
+			ber_lambda = 0
+			ber_params = [0,0,0,0]
         bubble_size = np.random.randint(5, 50)
         exo_left = 1 / np.random.uniform(1, 50, 1)[0]
         exo_right = 1 / np.random.uniform(1, 50, 1)[0]
@@ -498,7 +503,6 @@ def memory_simulator(sequence,
                      'C': [.01, .01, .97, .01],
                      'T': [.06, .02, .02, .9]
         }
-        ber_params = np.random.dirichlet([1, 1, 1, 1])
         p_fw = np.random.uniform(0, 1, 1)[0]
         for i in range(n_seqs):
             mr = MutationRound(sequence.seq,
