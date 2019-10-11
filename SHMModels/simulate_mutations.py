@@ -488,7 +488,7 @@ def memory_simulator(sequence,
         mutated_seq_list = []
         mmr_length_list = []
         #The prior specification
-		if ber_pathway:
+		if(ber_pathway):
 			ber_lambda = np.random.uniform(0, 1, 1)[0]
 			ber_params = np.random.dirichlet([1, 1, 1, 1])
 		else:
