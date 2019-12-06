@@ -8,7 +8,9 @@ from Bio.Alphabet import IUPAC
 from SHMModels.summary_statistics import write_all_stats
 from SHMModels.fitted_models import ContextModel
 
+
 # from timeit import default_timer as timer
+from theano.typed_list import length
 
 
 class MutationRound(object):
@@ -69,6 +71,9 @@ class MutationRound(object):
         self.aid_context_model = aid_context_model
         self.NUCLEOTIDES = ["A", "G", "C", "T"]
         self.mmr_sizes = []
+        self.mech_lesions = np.zeros((2, len(start_seq)))
+        self.mech_ber = np.zeros((2, len(start_seq)))
+        self.mech_mmr = np.zeros((2, len(start_seq)))
 
     def mutation_round(self):
         self.sample_lesions()
@@ -84,6 +89,10 @@ class MutationRound(object):
             time=self.aid_time,
             p_fw=self.p_fw,
         )
+        for i in self.aid_lesions[0]:
+            self.mech_lesions[0, i] += 1
+        for i in self.aid_lesions[1]:
+            self.mech_lesions[1, i] += 1
 
     def sample_repair_types(self):
         """Sample a repaired sequence given a base sequence and lesions."""
@@ -112,6 +121,9 @@ class MutationRound(object):
             # add the info about exo length here
             if rt.repair_type == "mmr":
                 self.mmr_sizes = self.mmr_sizes + [rt.exo_hi - rt.exo_lo]
+                self.mech_mmr[strand, rt.exo_lo : rt.exo_hi + 1] += 1
+            elif rt.repair_type == "ber":
+                self.mech_ber[strand, rt.idx] += 1
             if strand == 0:
                 int_seq = self.sample_sequence_given_repair(int_seq, rt)
             elif strand == 1:
@@ -463,7 +475,6 @@ def simulate_sequences_abc(
     write_ss=True,
     write_sequences=False,
 ):
-
     sequence = list(
         SeqIO.parse(germline_sequence, "fasta", alphabet=IUPAC.unambiguous_dna)
     )[0]
@@ -544,7 +555,8 @@ def simulate_sequences_abc(
         np.savetxt(ss_file, ss_array, delimiter=",")
     if write_sequences:
         np.savetxt(sequence_file, mutated_seq_array, delimiter=",", fmt="%s")
-    return (param_array, ss_array)
+    return param_array, ss_array
+
 
 
 # Simulate sequence without writing to disk, using fasta and context model files loaded in memory
@@ -554,9 +566,85 @@ def memory_simulator(
     n_params = 9
     param_array = np.zeros([n_sims, n_params])
     mutated_seq_array = np.empty([n_sims * n_seqs, 2], dtype="S500")
+    mech_array = np.zeros([n_sims, n_seqs, 3, len(sequence)])
     for sim in range(n_sims):
         mutated_seq_list = []
         mmr_length_list = []
+
+        # The prior specification
+        if ber_pathway:
+            ber_lambda = np.random.uniform(0, 1, 1)[0]
+            ber_params = np.random.dirichlet([1, 1, 1, 1])
+        else:
+            ber_lambda = 0
+            ber_params = [0, 0, 0, 0]
+        bubble_size = np.random.randint(5, 50)
+        exo_left = 1 / np.random.uniform(1, 50, 1)[0]
+        exo_right = 1 / np.random.uniform(1, 50, 1)[0]
+        pol_eta_params = {
+            "A": [0.9, 0.02, 0.02, 0.06],
+            "G": [0.01, 0.97, 0.01, 0.01],
+            "C": [0.01, 0.01, 0.97, 0.01],
+            "T": [0.06, 0.02, 0.02, 0.9],
+        }
+        p_fw = np.random.uniform(0, 1, 1)[0]
+        for i in range(n_seqs):
+            mr = MutationRound(
+                sequence.seq,
+                ber_lambda=ber_lambda,
+                mmr_lambda=1 - ber_lambda,
+                replication_time=100,
+                bubble_size=bubble_size,
+                aid_time=10,
+                exo_params={"left": exo_left, "right": exo_right},
+                pol_eta_params=pol_eta_params,
+                ber_params=ber_params,
+                p_fw=p_fw,
+                aid_context_model=aid_model,
+            )
+            for j in range(n_mutation_rounds):
+                mr.mutation_round()
+                mr.start_seq = mr.repaired_sequence
+            mechs = [
+                mr.mech_lesions[0, :] + mr.mech_lesions[1, ::-1],
+                mr.mech_ber[0, :] + mr.mech_ber[1, ::-1],
+                mr.mech_mmr[0, :] + mr.mech_mmr[1, ::-1],
+            ]
+            mutated_seq_list.append(SeqRecord(mr.repaired_sequence, id=""))
+            mech_array[sim, i, :, :] = mechs
+            if len(mr.mmr_sizes) > 0:
+                mmr_length_list.append(np.mean(mr.mmr_sizes))
+        params = [
+            ber_lambda,
+            bubble_size,
+            exo_left,
+            exo_right,
+            ber_params[0],
+            ber_params[1],
+            ber_params[2],
+            ber_params[3],
+            p_fw,
+        ]
+        param_array[sim, :] = params
+        seq_strings = [str(ms.seq) for ms in mutated_seq_list]
+        mutated_seq_array[(sim * n_seqs) : ((sim + 1) * n_seqs), 0] = seq_strings
+        mutated_seq_array[(sim * n_seqs) : ((sim + 1) * n_seqs), 1] = sim
+    return (param_array, mutated_seq_array, mech_array)
+
+
+# Simulate sequence without writing to disk, using fasta and context model files loaded in memory
+# Here we use mechanistic encoding
+def memory_simulator_mech(
+    sequence, aid_model, n_seqs, n_mutation_rounds, n_sims, ber_pathway
+):
+    n_params = 9
+    param_array = np.zeros([n_sims, n_params])
+    mech_array = np.zeros([length(sequence), 4, n_seqs])
+    mutated_seq_array = np.empty([n_sims * n_seqs, 2], dtype="S500")
+    for sim in range(n_sims):
+        mutated_seq_list = []
+        mmr_length_list = []
+        # The prior specification
         if ber_pathway:
             ber_lambda = np.random.uniform(0, 1, 1)[0]
             ber_params = np.random.dirichlet([1, 1, 1, 1])
@@ -608,5 +696,4 @@ def memory_simulator(
         seq_strings = [str(ms.seq) for ms in mutated_seq_list]
         mutated_seq_array[(sim * n_seqs) : ((sim + 1) * n_seqs), 0] = seq_strings
         mutated_seq_array[(sim * n_seqs) : ((sim + 1) * n_seqs), 1] = sim
-
     return (param_array, mutated_seq_array)
