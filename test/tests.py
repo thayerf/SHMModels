@@ -2,7 +2,6 @@ import unittest
 import numpy as np
 import pkgutil
 from Bio.Seq import Seq
-from Bio.Alphabet import IUPAC
 from SHMModels.simulate_mutations import make_aid_lesions
 from SHMModels.simulate_mutations import c_bases_in_bubble
 from SHMModels.simulate_mutations import deaminate_in_bubble
@@ -20,8 +19,8 @@ class testMutationSubset(unittest.TestCase):
         pass
 
     def test_mutation_subset(self):
-        naive_seq = Seq("AGCA", alphabet=IUPAC.unambiguous_dna)
-        mutated_seq = Seq("ATTT", alphabet=IUPAC.unambiguous_dna)
+        naive_seq = Seq("AGCA")
+        mutated_seq = Seq("ATTT")
         (_, ms1) = mutation_subset(naive_seq, mutated_seq, base="G")
         (_, ms3) = mutation_subset(naive_seq, mutated_seq, base="C")
         self.assertEqual(str(ms1), "ATCA")
@@ -49,18 +48,17 @@ class testAIDLesion(unittest.TestCase):
         # Input must be a seq object
         self.assertRaises(TypeError, make_aid_lesions,
                           "AGCT", cm)
-        # Input must have an IUPAC.unambiguous_dna alphabet
-        seq_wrong = Seq("AGCT", alphabet=IUPAC.protein)
-        self.assertRaises(TypeError, make_aid_lesions, seq_wrong, cm)
-        seq = Seq("AGCT", alphabet=IUPAC.unambiguous_dna)
+        seq = Seq("AGCT")
         (lesions_fw, lesions_rc) = make_aid_lesions(seq, cm)
+        lesions_fw = lesions_fw[0]
+        lesions_rc = lesions_rc[0]
         # all the lesions should be at C positions
         self.assertTrue(all([seq[i] == "C" for i in lesions_fw]))
         self.assertTrue(all([seq.reverse_complement()[i] == "C"
                              for i in lesions_rc]))
 
     def test_c_in_bubble(self):
-        seq = Seq("GCCCAG", alphabet=IUPAC.unambiguous_dna)
+        seq = Seq("GCCCAG")
         # should get a value error if the stop site is outside the
         # range of the sequence
         self.assertRaises(ValueError, c_bases_in_bubble, seq, 2, 20, "fw")
@@ -91,8 +89,8 @@ class testAIDLesion(unittest.TestCase):
     def test_bubble_deamination(self):
         context_model_string = pkgutil.get_data("SHMModels", "data/aid_goodman.csv")
         cm = ContextModel(context_length=3, pos_mutating=2, csv_string=context_model_string)
-        s = Seq("C" * 10 + "A" * 10 + "C" * 10,
-                alphabet=IUPAC.unambiguous_dna)
+        s = Seq("C" * 10 + "A" * 10 + "C" * 10
+                )
         (lesions_fw, lesions_rc) = deaminate_in_bubble(s, 20, len(s) - 1, "fw", cm, time=100)
         # no lesions on the rc strand
         self.assertEqual(len(lesions_rc), 0)
@@ -103,8 +101,7 @@ class testAIDLesion(unittest.TestCase):
 
     def test_lesions(self):
         cm = ContextModel(3, 2, pkgutil.get_data("SHMModels", "data/aid_goodman.csv"))
-        s = Seq("C" * 10 + "A" * 10 + "AACAGCAGCGACGTC",
-                alphabet=IUPAC.unambiguous_dna)
+        s = Seq("C" * 10 + "A" * 10 + "AACAGCAGCGACGTC")
         (lesions_fw, lesions_rc) = make_aid_lesions(s, cm, 10, 5)
 
     def test_sample_wait_times(self):
@@ -113,7 +110,7 @@ class testAIDLesion(unittest.TestCase):
     def test_pol_eta(self):
         # set a sequence, lesion, repair type, ber parameters, and
         # call sample_repaired_sequence
-        mr = MutationRound(Seq("AAGCT", alphabet=IUPAC.unambiguous_dna))
+        mr = MutationRound(Seq("AAGCT"))
 
     def test_ber(self):
         # set a sequence, lesion, repair type, ber parameters, and

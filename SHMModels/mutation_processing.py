@@ -1,7 +1,6 @@
 import pandas as pd
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import IUPAC
 import csv
 import sys
 import argparse
@@ -22,10 +21,6 @@ def mutation_subset(naive_seq, mutated_seq, base):
         raise TypeError("The naive sequence must be a Seq object")
     if not isinstance(mutated_seq, Seq):
         raise TypeError("The mutated sequence emust be a Seq object")
-    if not isinstance(naive_seq.alphabet, type(IUPAC.ambiguous_dna)):
-        raise TypeError("the alphabet must be IUPAC.ambiguous_dna")
-    if not isinstance(mutated_seq.alphabet, type(IUPAC.ambiguous_dna)):
-        raise TypeError("the alphabet must be IUPAC.ambiguous_dna")
     if len(naive_seq) != len(mutated_seq):
         raise ValueError("The naive and mutated sequences must have the same length.")
     mutated_seq_subset = list(str(naive_seq))
@@ -33,7 +28,7 @@ def mutation_subset(naive_seq, mutated_seq, base):
     for (i, (b1, b2)) in enumerate(zip(naive_seq, mutated_seq)):
         if (b1 != b2) and (b1 == base):
             mutated_seq_subset[i] = b2
-    mutated_seq_subset = Seq("".join(mutated_seq_subset), alphabet=IUPAC.ambiguous_dna)
+    mutated_seq_subset = Seq("".join(mutated_seq_subset))
     return (naive_seq, mutated_seq_subset)
 
 
@@ -74,17 +69,17 @@ def mutation_subset_from_samm(seqs_file, genes_file, base, strand, output_seqs=N
         if strand == 'rc' or strand == 'both':
             for k in genes_dict.keys():
                 rc_names = k + 'rc'
-                rc_seq = Seq(genes_dict[k], alphabet=IUPAC.unambiguous_dna).reverse_complement()
+                rc_seq = Seq(genes_dict[k]).reverse_complement()
                 genes_dict[rc_names] = str(rc_seq)
 
     # a list to store the rows of the data frame in
     mutation_subset_rows = []
     # step through the seqs data frame row by row
     for (index, row) in seqs.iterrows():
-        mutated_seq = Seq(row["sequence"], alphabet=IUPAC.ambiguous_dna)
-        naive_seq = Seq(genes_dict[row["germline_name"]], alphabet=IUPAC.ambiguous_dna)
+        mutated_seq = Seq(row["sequence"])
+        naive_seq = Seq(genes_dict[row["germline_name"]])
         if len(mutated_seq) != len(naive_seq):
-            print "sequence lengths differ: {} and {}".format(len(mutated_seq), len(naive_seq))
+            print("sequence lengths differ: {} and {}".format(len(mutated_seq), len(naive_seq)))
         if strand == 'fw' or strand == 'both':
             (ms_naive, ms_mut) = mutation_subset(naive_seq, mutated_seq, base)
             new_row = row.copy()
