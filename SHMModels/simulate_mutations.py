@@ -49,7 +49,8 @@ class MutationRound(object):
         ber_params=[0, 0, 1, 0],
         log_ls = -7.0,
         sg = 10.0,
-        br = 0.15,
+        fw_br = 0.15,
+        rc_br = 0.15,
         off = -10.0,
         ridge = 0.01,
         aid_context_model=None,
@@ -73,7 +74,8 @@ class MutationRound(object):
         self.mmr_sizes = []
         self.log_ls = log_ls
         self.sg = sg
-        self.br = br
+        self.fw_br = fw_br
+        self.rc_br = rc_br
         self.off = off
         self.ridge = ridge
 
@@ -92,7 +94,8 @@ class MutationRound(object):
             p_fw=self.p_fw,
             ls = np.exp(self.log_ls),
             sg = self.sg,
-            br = self.br,
+            fw_br = self.fw_br,
+            rc_br = self.rc_br,
             off = self.off,
             ridge = self.ridge
         )
@@ -332,7 +335,8 @@ def get_next_repair(repair_list):
 
 def make_aid_lesions(sequence, context_model, bubble_size=20, time=1, p_fw=0.5,ls = np.exp(-7.0),
             sg = 10.0,
-            br = 0.15,
+            fw_br = 0.15,
+            rc_br = 0.15,
             off = -10.0,
             ridge = 0.01,
             re = False):
@@ -355,10 +359,10 @@ def make_aid_lesions(sequence, context_model, bubble_size=20, time=1, p_fw=0.5,l
     else:
         random = 0.0
     # Sample forward and reverse prelesions
-    fw_vals = np.random.poisson(lam = np.exp(np.log(br)+random), size = n)
+    fw_vals = np.random.binomial(n=1, p = fw_br)
     fw_vals = np.multiply(fw_vals, [i == 'C' for i in sequence])
     
-    rc_vals = np.random.poisson(lam = np.exp(np.log(br)+random), size = n)
+    rc_vals = np.random.binomial(n=1, p = rc_br)
     rc_vals = np.multiply(rc_vals, [i == 'G' for i in sequence])
     
     # Get prelesion positions on [0,1]
