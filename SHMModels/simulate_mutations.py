@@ -9,7 +9,6 @@ from SHMModels.fitted_models import ContextModel
 import math
 
 
-
 class MutationRound(object):
     """A round of deamination and repair, resulting in mutations. A MutationRound has the following properties:
 
@@ -47,12 +46,12 @@ class MutationRound(object):
         },
         p_fw=0.5,
         ber_params=[0, 0, 1, 0],
-        log_ls = -7.0,
-        sg = 10.0,
-        fw_br = 0.15,
-        rc_br = 0.15,
-        off = -10.0,
-        ridge = 0.01,
+        log_ls=-7.0,
+        sg=10.0,
+        fw_br=0.15,
+        rc_br=0.15,
+        off=-10.0,
+        ridge=0.01,
         aid_context_model=None,
     ):
         """Returns a MutationRound object with a specified start_seq"""
@@ -92,12 +91,12 @@ class MutationRound(object):
             bubble_size=self.bubble_size,
             time=self.aid_time,
             p_fw=self.p_fw,
-            ls = np.exp(self.log_ls),
-            sg = self.sg,
-            fw_br = self.fw_br,
-            rc_br = self.rc_br,
-            off = self.off,
-            ridge = self.ridge
+            ls=np.exp(self.log_ls),
+            sg=self.sg,
+            fw_br=self.fw_br,
+            rc_br=self.rc_br,
+            off=self.off,
+            ridge=self.ridge,
         )
 
     def sample_repair_types(self):
@@ -333,13 +332,20 @@ def get_next_repair(repair_list):
         return (next_repair, new_repair_list)
 
 
-def make_aid_lesions(sequence, context_model, bubble_size=20, time=1, p_fw=0.5,ls = np.exp(-7.0),
-            sg = 10.0,
-            fw_br = 0.15,
-            rc_br = 0.15,
-            off = -10.0,
-            ridge = 0.01,
-            re = False):
+def make_aid_lesions(
+    sequence,
+    context_model,
+    bubble_size=20,
+    time=1,
+    p_fw=0.5,
+    ls=np.exp(-7.0),
+    sg=10.0,
+    fw_br=0.15,
+    rc_br=0.15,
+    off=-10.0,
+    ridge=0.01,
+    re=False,
+):
     """Simulates AID lesions on a sequence
 
     Keyword arguments:
@@ -355,54 +361,63 @@ def make_aid_lesions(sequence, context_model, bubble_size=20, time=1, p_fw=0.5,l
     n = len(sequence)
     # Sample random effect if applicable
     if re:
-        random = np.random.normal(loc = 1.0)
+        random = np.random.normal(loc=1.0)
     else:
         random = 0.0
     # Sample forward and reverse prelesions
-    fw_vals = np.random.binomial(n=1, p = fw_br)
-    fw_vals = np.multiply(fw_vals, [i == 'C' for i in sequence])
-    
-    rc_vals = np.random.binomial(n=1, p = rc_br)
-    rc_vals = np.multiply(rc_vals, [i == 'G' for i in sequence])
-    
+
+    # Check if strand br's are vectors of context probs, or singular values
+    if isinstance(fw_br, float):
+        fw_br = [fw_br] * len(sequence)
+        rc_br = [rc_br] * len(sequence)
+
+    # Flip coins at every site, and then filter if cite is C on that strand
+    fw_vals = np.random.binomial(n=1, p=fw_br)
+    fw_vals = np.multiply(fw_vals, [i == "C" for i in sequence])
+
+    rc_vals = np.random.binomial(n=1, p=rc_br)
+    rc_vals = np.multiply(rc_vals, [i == "G" for i in sequence])
+
     # Get prelesion positions on [0,1]
     fw_cont = []
     rc_cont = []
     for i in range(np.size(fw_vals)):
         if fw_vals[i] > 0:
-            conts = (i-np.random.uniform(size = 1))/n
+            conts = (i - np.random.uniform(size=1)) / n
             fw_cont = np.append(fw_cont, conts)
         if rc_vals[i] > 0:
-            conts = (i-np.random.uniform(size = 1))/n
+            conts = (i - np.random.uniform(size=1)) / n
             rc_cont = np.append(rc_cont, conts)
-    full_cont = np.concatenate((fw_cont,rc_cont))
+    full_cont = np.concatenate((fw_cont, rc_cont))
     # If there are prelesions, sample a gp at them
     m = np.size(full_cont)
-    if m > 0 :
+    if m > 0:
         K = make_se_kernel(full_cont, ls, sg, ridge)
-        lambda_of_x = np.random.multivariate_normal(mean = np.zeros(m) + off, cov = K)
-        A = [(xi) for (xi, li) in zip(full_cont, lambda_of_x) if 0 < li]    
+        lambda_of_x = np.random.multivariate_normal(mean=np.zeros(m) + off, cov=K)
+        A = [(xi) for (xi, li) in zip(full_cont, lambda_of_x) if 0 < li]
     else:
         A = []
-        
+
     A_long = np.zeros(n)
-    
+
     for i in A:
-        A_long[math.ceil(n*i)] = 1.0
-    A_long = np.array([i==1 for i in A_long])
-    fw_lesions = A_long & np.array([i ==1 for i in fw_vals])
-    rc_lesions = A_long & np.array([i==1 for i in rc_vals])
-    lesions = (np.where(fw_lesions)[0],np.where(rc_lesions)[0])
+        A_long[math.ceil(n * i)] = 1.0
+    A_long = np.array([i == 1 for i in A_long])
+    fw_lesions = A_long & np.array([i == 1 for i in fw_vals])
+    rc_lesions = A_long & np.array([i == 1 for i in rc_vals])
+    lesions = (np.where(fw_lesions)[0], np.where(np.flip(rc_lesions))[0])
     return lesions
+
 
 def make_se_kernel(x, lengthscale, sigma, gp_ridge):
     D = np.zeros([len(x), len(x)])
     upper_tri = np.triu_indices(len(x), 1)
-    D[upper_tri] = ((np.array(x)[upper_tri[0]] - np.array(x)[upper_tri[1]])**2)
+    D[upper_tri] = (np.array(x)[upper_tri[0]] - np.array(x)[upper_tri[1]]) ** 2
     D += D.T
     K = sigma**2 * np.exp(-D / (2 * lengthscale))
     np.fill_diagonal(K, K.diagonal() + gp_ridge)
     return K
+
 
 def c_bases_in_bubble(sequence, bubble_size, stop_site, strand):
     """Identifies all the Cs in a transcription bubble
@@ -522,9 +537,7 @@ def simulate_sequences_abc(
     write_ss=True,
     write_sequences=False,
 ):
-    sequence = list(
-        SeqIO.parse(germline_sequence, "fasta")
-    )[0]
+    sequence = list(SeqIO.parse(germline_sequence, "fasta"))[0]
     aid_model_string = pkgutil.get_data("SHMModels", aid_context_model)
     aid_model = ContextModel(
         context_model_length, context_model_pos_mutating, aid_model_string
@@ -605,16 +618,13 @@ def simulate_sequences_abc(
     return param_array, ss_array
 
 
-
 # Simulate sequence without writing to disk, using fasta and context model files loaded in memory
-def memory_simulator(
-    sequence, aid_model, n_seqs, n_mutation_rounds, prior_params
-):
+def memory_simulator(sequence, aid_model, n_seqs, n_mutation_rounds, prior_params):
     mutated_seq_list = []
     # The prior specification
     ber_lambda = 0.5
-    ber_params = [0.25,0.25,0.25,0.25]
-    
+    ber_params = [0.25, 0.25, 0.25, 0.25]
+
     bubble_size = 25.0
     exo_left = 0.04
     exo_right = 0.04
@@ -625,7 +635,7 @@ def memory_simulator(
         "T": [0.06, 0.02, 0.02, 0.9],
     }
     p_fw = 0.5
-    
+
     for i in range(n_seqs):
         mr = MutationRound(
             sequence.seq,
@@ -639,14 +649,14 @@ def memory_simulator(
             ber_params=ber_params,
             p_fw=p_fw,
             aid_context_model=aid_model,
-            log_ls = prior_params['lengthscale'],
-            br = prior_params['base_rate'],
-            sg = prior_params['gp_sigma'],
-            off = prior_params['gp_offset']
+            log_ls=prior_params["lengthscale"],
+            br=prior_params["base_rate"],
+            sg=prior_params["gp_sigma"],
+            off=prior_params["gp_offset"],
         )
         for j in range(n_mutation_rounds):
             mr.mutation_round()
             mr.start_seq = mr.repaired_sequence
         mutated_seq_list.append(SeqRecord(mr.repaired_sequence, id=""))
     seq_strings = [str(ms.seq) for ms in mutated_seq_list]
-    return (seq_strings)
+    return seq_strings
