@@ -3,7 +3,7 @@
 from setuptools import setup, find_packages
 
 setup(name='SHMModels',
-      version='1.0',
+      version='1.01',
       description='Mechanistic modeling of somatic hypermutation',
       author='Julia Fukuyama',
       author_email='julia.fukuyama@gmail.com',
